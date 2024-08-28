@@ -1,0 +1,27 @@
+{
+    "name": "luzrain/polyfill-inotify",
+    "description": "Polyfill for the Inotify extension",
+    "keywords": ["polyfill", "inotify"],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Anton Zenkov",
+            "email": "anton.z@live.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.0"
+    },
+    "provide": {
+        "ext-inotify": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Luzrain\\Polyfill\\Inotify\\": ""
+        },
+        "files": [
+            "bootstrap.php"
+        ]
+    }
+}
