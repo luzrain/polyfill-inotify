@@ -69,6 +69,8 @@ final class Inotify
     private const INOTIFY_ADD_WATCH_ENOSPC = 'inotify_add_watch(): The user limit on the total number of inotify watches was reached or the kernel failed to allocate a needed resource';
     private const INOTIFY_RM_WATCH_EINVAL  = 'inotify_rm_watch(): The file descriptor is not an inotify instance or the watch descriptor is invalid';
 
+    private const FIONREAD = 0x541B;
+
     private static \FFI $ffi;
 
     private function __construct()
@@ -134,6 +136,22 @@ final class Inotify
         return $watchDescriptor;
     }
 
+    private static function php_inotify_queue_len(int $fd): int
+    {
+        $ffi = self::getFFI();
+        $queueLen = $ffi->new('int');
+
+        $ret = $ffi->ioctl($fd, self::FIONREAD, \FFI::addr($queueLen));
+
+        if ($ret === -1) {
+            \trigger_error(self::strerror($ffi->errno), E_USER_WARNING);
+
+            return 0;
+        }
+
+        return $queueLen->cdata;
+    }
+
     /**
      * @param resource $inotify_instance
      */
@@ -143,7 +161,7 @@ final class Inotify
             throw new \TypeError(\sprintf('$inotify_instance must be of type resource, %s given', \get_debug_type($inotify_instance)));
         }
 
-        throw new \RuntimeException('Not implemented yet');
+        return self::php_inotify_queue_len(StreamWrapper::fdFromStream($inotify_instance));
     }
 
     /**
@@ -162,7 +180,10 @@ final class Inotify
         $inotifyEventType = $ffi->type('struct inotify_event');
         $inotifyEventPtrType = $ffi->type('struct inotify_event *');
 
-        $bufSize = \max(\FFI::sizeof($inotifyEventType) + 255, 128);
+        $bufSize = (int) \ceil(self::php_inotify_queue_len($fd) * 1.6);
+        if ($bufSize < 1) {
+            $bufSize = \FFI::sizeof($inotifyEventType) + 32;
+        }
 
         while (true) {
             $readbuf = $ffi->new(\FFI::arrayType($ffi->type('char'), [$bufSize]));

@@ -12,8 +12,9 @@ struct inotify_event
 };
 
 extern int inotify_init (void);
-extern int inotify_add_watch (int __fd, const char *__name, uint32_t __mask);
-extern int inotify_rm_watch (int __fd, int __wd);
+extern int inotify_add_watch (int fd, const char *pathname, uint32_t mask);
+extern int inotify_rm_watch (int fd, int wd);
 extern int close(int fd);
 extern int read(int fd, void *buf, size_t count);
+extern int ioctl(int fd, int op, ...);
 extern int errno;
