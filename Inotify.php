@@ -77,7 +77,7 @@ final class Inotify
     {
     }
 
-    private static function getFFI(): \FFI
+    private static function ffi(): \FFI
     {
         return self::$ffi ??= \FFI::load(__DIR__ . '/inotify.h');
     }
@@ -87,15 +87,14 @@ final class Inotify
      */
     public static function inotify_init(): mixed
     {
-        $ffi = self::getFFI();
-        $fd = $ffi->inotify_init();
+        $fd = self::ffi()->inotify_init();
 
         if ($fd === -1) {
-            $error = match ($ffi->errno) {
+            $error = match (self::ffi()->errno) {
                 self::EMFILE => self::INOTIFY_INIT_EMFILE,
                 self::ENFILE => self::INOTIFY_INIT_ENFILE,
                 self::ENOMEM => self::INOTIFY_INIT_ENOMEM,
-                default => self::strerror($ffi->errno),
+                default => self::strerror(self::ffi()->errno),
             };
             \trigger_error($error, E_USER_WARNING);
 
@@ -114,19 +113,17 @@ final class Inotify
             throw new \TypeError(\sprintf('$inotify_instance must be of type resource, %s given', \get_debug_type($inotify_instance)));
         }
 
-        $ffi = self::getFFI();
         $fd = StreamWrapper::fdFromStream($inotify_instance);
-
-        $watchDescriptor = $ffi->inotify_add_watch($fd, $pathname, $mask);
+        $watchDescriptor = self::ffi()->inotify_add_watch($fd, $pathname, $mask);
 
         if ($watchDescriptor === -1) {
-            $error = match ($ffi->errno) {
+            $error = match (self::ffi()->errno) {
                 self::EACCES => self::INOTIFY_ADD_WATCH_EACCES,
                 self::EBADF => self::INOTIFY_ADD_WATCH_EBADF,
                 self::EINVAL => self::INOTIFY_ADD_WATCH_EINVAL,
                 self::ENOMEM => self::INOTIFY_ADD_WATCH_ENOMEM,
                 self::ENOSPC => self::INOTIFY_ADD_WATCH_ENOSPC,
-                default => self::strerror($ffi->errno),
+                default => self::strerror(self::ffi()->errno),
             };
             \trigger_error($error, E_USER_WARNING);
 
@@ -138,13 +135,12 @@ final class Inotify
 
     private static function php_inotify_queue_len(int $fd): int
     {
-        $ffi = self::getFFI();
-        $queueLen = $ffi->new('int');
+        $queueLen = self::ffi()->new('int');
 
-        $ret = $ffi->ioctl($fd, self::FIONREAD, \FFI::addr($queueLen));
+        $ret = self::ffi()->ioctl($fd, self::FIONREAD, \FFI::addr($queueLen));
 
         if ($ret === -1) {
-            \trigger_error(self::strerror($ffi->errno), E_USER_WARNING);
+            \trigger_error(self::strerror(self::ffi()->errno), E_USER_WARNING);
 
             return 0;
         }
@@ -174,11 +170,10 @@ final class Inotify
             throw new \TypeError(\sprintf('$inotify_instance must be of type resource, %s given', \get_debug_type($inotify_instance)));
         }
 
-        $ffi = self::getFFI();
         $fd = StreamWrapper::fdFromStream($inotify_instance);
 
-        $inotifyEventType = $ffi->type('struct inotify_event');
-        $inotifyEventPtrType = $ffi->type('struct inotify_event *');
+        $inotifyEventType = self::ffi()->type('struct inotify_event');
+        $inotifyEventPtrType = self::ffi()->type('struct inotify_event *');
 
         $bufSize = (int) \ceil(self::php_inotify_queue_len($fd) * 1.6);
         if ($bufSize < 1) {
@@ -186,17 +181,17 @@ final class Inotify
         }
 
         while (true) {
-            $readbuf = $ffi->new(\FFI::arrayType($ffi->type('char'), [$bufSize]));
-            $readden = $ffi->read($fd, $readbuf, $bufSize);
+            $readbuf = self::ffi()->new(\FFI::arrayType(self::ffi()->type('char'), [$bufSize]));
+            $readden = self::ffi()->read($fd, $readbuf, $bufSize);
 
             if ($readden === -1) {
                 // buf too small to read an event
-                if ($ffi->errno === self::EINVAL) {
+                if (self::ffi()->errno === self::EINVAL) {
                     $bufSize = (int) \ceil($bufSize * 1.6);
                     continue;
                 }
                 // fd is unblocking, and no event is available
-                if ($ffi->errno === self::EAGAIN) {
+                if (self::ffi()->errno === self::EAGAIN) {
                     return false;
                 }
             }
@@ -206,7 +201,7 @@ final class Inotify
 
         $events = [];
         for ($i = 0; $i < $readden; $i += \FFI::sizeof($inotifyEventType) + $event->len) {
-            $event = $ffi->cast($inotifyEventPtrType, \FFI::addr($readbuf[$i]));
+            $event = self::ffi()->cast($inotifyEventPtrType, \FFI::addr($readbuf[$i]));
             $events[] = [
                 'wd' => $event->wd,
                 'mask' => $event->mask,
@@ -227,13 +222,13 @@ final class Inotify
             throw new \TypeError(\sprintf('$inotify_instance must be of type resource, %s given', \get_debug_type($inotify_instance)));
         }
 
-        $ffi = self::getFFI();
         $fd = StreamWrapper::fdFromStream($inotify_instance);
+        $ret = self::ffi()->inotify_rm_watch($fd, $watch_descriptor);
 
-        if ($ffi->inotify_rm_watch($fd, $watch_descriptor) === -1) {
-            $error = match ($ffi->errno) {
+        if ($ret === -1) {
+            $error = match (self::ffi()->errno) {
                 self::EINVAL => self::INOTIFY_RM_WATCH_EINVAL,
-                default => self::strerror($ffi->errno),
+                default => self::strerror(self::ffi()->errno),
             };
             \trigger_error($error, E_USER_WARNING);
 
@@ -245,8 +240,7 @@ final class Inotify
 
     public static function closeFD(int $fd): void
     {
-        $ffi = self::getFFI();
-        $ffi->close($fd);
+        self::ffi()->close($fd);
     }
 
     private static function strerror(int $errno): string
